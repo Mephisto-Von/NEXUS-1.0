@@ -1,3 +1,4 @@
+opencode -s ses_1d258c9e1ffecvkSmXbihPL0a9
 <div align="center">
 
 <img src="https://img.shields.io/badge/Tauri-2.0-FFC131?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri 2.0" />
