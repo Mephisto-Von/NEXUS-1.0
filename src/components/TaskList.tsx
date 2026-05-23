@@ -40,16 +40,17 @@ const Empty = styled.div`
   text-align: center; padding: 40px; color: var(--bone-darker);
 `;
 
-const Card = styled.div`
-  border: 1px solid var(--rule-strong);
-  background: var(--void-2);
+const Card = styled.div<{ $selected?: boolean }>`
+  border: 1px solid ${p => p.$selected ? 'var(--neon-cyan)' : 'var(--rule-strong)'};
+  background: ${p => p.$selected ? 'rgba(0, 240, 255, 0.04)' : 'var(--void-2)'};
   padding: 16px 20px;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 12px;
   align-items: center;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background-color 0.2s;
   cursor: none;
+  box-shadow: ${p => p.$selected ? '0 0 20px rgba(0, 240, 255, 0.08)' : 'none'};
   &:hover { border-color: var(--neon-cyan); }
   @media (max-width: 760px) { grid-template-columns: 1fr; }
 `;
@@ -106,9 +107,11 @@ const ProgressFill = styled.div`
 
 interface Props {
   tasks: TaskSummary[];
+  selectedTaskId: string | null;
+  onSelectTask: (id: string) => void;
 }
 
-export function TaskList({ tasks }: Props) {
+export function TaskList({ tasks, selectedTaskId, onSelectTask }: Props) {
   if (tasks.length === 0) {
     return (
       <Section id="tasks">
@@ -131,7 +134,11 @@ export function TaskList({ tasks }: Props) {
       </SectionHead>
       <List>
         {tasks.map(t => (
-          <Card key={t.id}>
+          <Card 
+            key={t.id} 
+            $selected={t.id === selectedTaskId} 
+            onClick={() => onSelectTask(t.id)}
+          >
             <div>
               <Prompt>{t.prompt}</Prompt>
               <Meta>
@@ -141,7 +148,7 @@ export function TaskList({ tasks }: Props) {
                   <Time>{(t.metrics.duration_ms / 1000).toFixed(1)}s</Time>
                 )}
               </Meta>
-              {t.status === 'running' && (
+              {['running', 'decomposing', 'executing', 'voting', 'synthesizing', 'reviewing'].includes(t.status) && (
                 <ProgressBar><ProgressFill /></ProgressBar>
               )}
             </div>

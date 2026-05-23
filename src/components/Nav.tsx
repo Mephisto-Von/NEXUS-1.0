@@ -72,11 +72,15 @@ const Dot = styled.span<{ $connected: boolean }>`
   ${p => p.$connected && 'animation: pulse 1.6s steps(2) infinite;'}
 `;
 
-export function Nav() {
+interface Props {
+  user?: { name: string; email: string; avatarUrl: string } | null;
+}
+
+export function Nav({ user }: Props) {
   return (
     <NavEl>
       <Brand href="#">
-        NEXUS<LogoDot>.</LogoDot><LogoNum>7</LogoNum>
+        NEXUS <LogoNum>1.0</LogoNum>
       </Brand>
       <Links>
         <Link href="#terminal" $active>TERMINAL</Link>
@@ -86,6 +90,12 @@ export function Nav() {
         <Link href="#results">RESULTS</Link>
       </Links>
       <Status>
+        {user && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRight: '1px solid var(--rule)', paddingRight: '12px' }}>
+            <img src={user.avatarUrl} alt={user.name} style={{ width: '20px', height: '20px', borderRadius: '50%', border: '1px solid var(--neon-cyan)' }} />
+            <span style={{ fontSize: '10px', color: 'var(--neon-cyan)', letterSpacing: '0.1em' }}>{user.name.toUpperCase()}</span>
+          </div>
+        )}
         <Dot $connected />
         <span>CONNECTED</span>
       </Status>

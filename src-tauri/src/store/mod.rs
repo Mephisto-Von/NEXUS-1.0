@@ -123,7 +123,46 @@ impl TaskStore {
         }
     }
 
-    pub fn create(&self, prompt: String, models: Vec<String>, mode: String) -> Result<Task, StoreError> {
+    pub fn load_from_disk(&mut self, security: &crate::security::SecurityManager) -> Result<(), StoreError> {
+        let path = std::path::PathBuf::from(security.data_dir()).join("tasks.enc");
+        if path.exists() {
+            let encrypted = std::fs::read(&path).map_err(|e| StoreError::Storage(e.to_string()))?;
+            if !encrypted.is_empty() {
+                let decrypted = security.decrypt_data(&encrypted).map_err(|e| StoreError::Storage(e.to_string()))?;
+                let tasks: HashMap<String, Task> = serde_json::from_slice(&decrypted).map_err(|e| StoreError::Serialization(e.to_string()))?;
+                self.tasks = tasks;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn save_to_disk(&self, security: &crate::security::SecurityManager) -> Result<(), StoreError> {
+        let path = std::path::PathBuf::from(security.data_dir()).join("tasks.enc");
+        let serialized = serde_json::to_vec(&self.tasks).map_err(|e| StoreError::Serialization(e.to_string()))?;
+        let encrypted = security.encrypt_data(&serialized).map_err(|e| StoreError::Storage(e.to_string()))?;
+        std::fs::write(&path, encrypted).map_err(|e| StoreError::Storage(e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn add_log(&mut self, id: &str, log_type: &str, message: &str) -> Result<(), StoreError> {
+        let task = self.tasks.get_mut(id).ok_or_else(|| StoreError::NotFound(id.to_string()))?;
+        task.logs.push(TaskLog {
+            log_type: log_type.to_string(),
+            message: message.to_string(),
+            timestamp: Utc::now(),
+        });
+        task.updated_at = Utc::now();
+        Ok(())
+    }
+
+    pub fn set_subtasks(&mut self, id: &str, subtasks: Vec<Subtask>) -> Result<(), StoreError> {
+        let task = self.tasks.get_mut(id).ok_or_else(|| StoreError::NotFound(id.to_string()))?;
+        task.subtasks = subtasks;
+        task.updated_at = Utc::now();
+        Ok(())
+    }
+
+    pub fn create(&mut self, prompt: String, models: Vec<String>, mode: String) -> Result<Task, StoreError> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now();
 
@@ -149,6 +188,7 @@ impl TaskStore {
             },
         };
 
+        self.tasks.insert(id.clone(), task.clone());
         Ok(task)
     }
 

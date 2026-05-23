@@ -30,23 +30,30 @@ async fn create_task(
     let models = models.unwrap_or_default();
 
     let task = {
-        let store = state.task_store.read();
-        store.create(prompt, models, mode).map_err(|e| e.to_string())?
+        let mut store = state.task_store.write();
+        let t = store.create(prompt, models, mode).map_err(|e| e.to_string())?;
+        let _ = store.save_to_disk(&state.security);
+        t
     };
 
     let task_id = task.id.clone();
 
     let orchestrator = Orchestrator::new(
-        task,
+        task_id.clone(),
+        state.task_store.clone(),
         state.model_registry.clone(),
         state.security.clone(),
     );
 
+    let ts_clone = state.task_store.clone();
+    let sec_clone = state.security.clone();
+    let task_id_clone = task_id.clone();
+
     tauri::async_runtime::spawn(async move {
         if let Err(e) = orchestrator.run().await {
-            let ts = state.task_store.clone();
-            if let Ok(mut store) = ts.write() {
-                let _ = store.fail_task(&task_id, &e.to_string());
+            if let Ok(mut store) = ts_clone.write() {
+                let _ = store.fail_task(&task_id_clone, &e.to_string());
+                let _ = store.save_to_disk(&sec_clone);
             }
         }
     });
@@ -72,6 +79,7 @@ fn get_task(id: String, state: State<'_, AppState>) -> Result<serde_json::Value,
 fn delete_task(id: String, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let mut store = state.task_store.write();
     store.delete(&id).map_err(|e| e.to_string())?;
+    let _ = store.save_to_disk(&state.security);
     Ok(serde_json::json!({ "ok": true }))
 }
 
@@ -81,6 +89,7 @@ fn wipe_all_data(state: State<'_, AppState>) -> Result<serde_json::Value, String
     sec.secure_wipe().map_err(|e| e.to_string())?;
     let mut store = state.task_store.write();
     store.wipe_all().map_err(|e| e.to_string())?;
+    let _ = store.save_to_disk(sec);
     Ok(serde_json::json!({ "ok": true, "message": "All data securely wiped" }))
 }
 
@@ -146,7 +155,12 @@ pub fn run() {
     let model_registry = Arc::new(parking_lot::RwLock::new(
         ModelRegistry::new().expect("Failed to initialize model registry")
     ));
-    let task_store = Arc::new(RwLock::new(TaskStore::new()));
+    
+    let mut store_inner = TaskStore::new();
+    if let Err(e) = store_inner.load_from_disk(&security) {
+        log::error!("Failed to load tasks from encrypted storage: {}", e);
+    }
+    let task_store = Arc::new(RwLock::new(store_inner));
 
     let app_state = AppState {
         task_store,

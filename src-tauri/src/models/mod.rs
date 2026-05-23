@@ -65,7 +65,15 @@ impl ModelRegistry {
         let device = Device::Cpu;
 
         let profiles = Self::build_registry();
-        let loaded = HashMap::new();
+        let mut loaded = HashMap::new();
+        for (tag, profile) in &profiles {
+            if profile.tier == "online" {
+                loaded.insert(tag.clone(), LoadedModel {
+                    profile: profile.clone(),
+                    path: PathBuf::from("online"),
+                });
+            }
+        }
 
         Ok(Self {
             profiles,
@@ -204,6 +212,25 @@ impl ModelRegistry {
             8192, 0.4, "specialized",
             "TheBloke/OpenHermes-2.5-Mistral-7B-GGUF", "openhermes-2.5-mistral-7b.Q4_K_M.gguf");
 
+        // TIER 6: Cloud (Online)
+        add!("gemini-3.5-flash", "Gemini 3.5 Flash", "CLOUD", 0,
+            "speed", "synthesizer",
+            ["ultra-fast cloud generation", "1M+ context window", "next-gen multimodal speed"],
+            1048576, 0.4, "online",
+            "google/gemini-3.5-flash", "online");
+
+        add!("gemini-3.5-pro", "Gemini 3.5 Pro", "CLOUD", 0,
+            "complex", "critic",
+            ["deep logical reasoning", "complex mathematical proofs", "elite architecture design"],
+            2097152, 0.3, "online",
+            "google/gemini-3.5-pro", "online");
+
+        add!("gemini-3.0-flash", "Gemini 3.0 Flash", "CLOUD", 0,
+            "general", "generalist",
+            ["high-speed standard model", "multilingual reasoning", "balanced general tasks"],
+            1048576, 0.5, "online",
+            "google/gemini-3.0-flash", "online");
+
         map
     }
 
@@ -214,6 +241,15 @@ impl ModelRegistry {
 
         let profile = self.profiles.get(tag)
             .ok_or_else(|| ModelError::LoadFailed(format!("Unknown model: {}", tag)))?;
+
+        if profile.tier == "online" {
+            let path = PathBuf::from("online");
+            self.loaded.insert(tag.to_string(), LoadedModel {
+                profile: profile.clone(),
+                path: path.clone(),
+            });
+            return Ok(path);
+        }
 
         let api = Api::new().map_err(|e| ModelError::DownloadFailed(e.to_string()))?;
         let repo = Repo::with_revision(
